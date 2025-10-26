@@ -1,0 +1,9 @@
+version: '3'
+services:
+  web:
+  #  Target dockerfile and by using . tell that dockerfile is in the current directory
+    build: .     
+    ports:
+      - "5005:5000"
+    volumes:
+      - .:/app
