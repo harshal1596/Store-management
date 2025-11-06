@@ -6,6 +6,7 @@ from flask_smorest import Api
 from db import db
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
+from blocklist import BLOCKLIST
 
 from resources.item import blp as ItemBlueprint
 from resources.store import blp as StoreBlueprint
@@ -32,9 +33,42 @@ def create_app(db_url=None):
     # app.config["JWT_SECRET_KEY"] = "278550777107219032317099760688930905444"
     app.config["JWT_SECRET_KEY"] = "BillieJoeArmstrong"
     db.init_app(app)
-    # migrate = Migrate(app, db)
+    migrate = Migrate(app, db)
     api = Api(app)
     jwt = JWTManager(app)
+
+    @jwt.needs_fresh_token_loader
+    def token_not_fresh_callback(jwt_header, jwt_payload):
+        return (
+            jsonify(
+                {
+                    "description": "The token is not fresh.",
+                    "error": "fresh_token_required",
+                }
+            ),
+            401,
+        )
+
+    @jwt.token_in_blocklist_loader
+    def check_if_token_in_blocklist(jwt_header, jwt_payload):
+        return jwt_payload["jti"] in BLOCKLIST
+
+
+    @jwt.revoked_token_loader
+    def revoked_token_callback(jwt_header, jwt_payload):
+        return (
+            jsonify(
+                {"description": "The token has been revoked.", "error": "token_revoked"}
+            ),
+            401,
+        )
+
+    @jwt.additional_claims_loader
+    def add_claims_to_jwt(identity):
+        print("identity-->", identity)
+        if identity == "1":
+            return {"is_admin": True}
+        return {"is_admin": False}
 
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
@@ -65,9 +99,9 @@ def create_app(db_url=None):
         )
     
     # Create tables before app starts
-    with app.app_context():
-        # db.drop_all()
-        db.create_all()
+    # with app.app_context():
+    #     # db.drop_all()
+    #     db.create_all()
 
     api.register_blueprint(ItemBlueprint)
     api.register_blueprint(StoreBlueprint)
